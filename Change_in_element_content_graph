@@ -1,0 +1,31 @@
+##### making graphs for element content from 2020 to 2023
+## this has control data from 2021 and 2023
+graph_data1 <- read_excel(""C:\\Users\\kelle\\OneDrive\\Thesis\\April2024_graphs\\Change_in_element_content_graph_dataframe")
+
+element <- "Mg" #adjust element value to make a different graph
+
+one_element <- graph_data1 %>% 
+  filter(element == !!element)
+
+one_element$fert_type <- factor(one_element$fert_type, levels = c("N", "P", "NP", "Ca", "Control"))
+
+color_palette <- c("N" = "blue", "P" = "red", "NP" = "purple", "Ca" = "yellow", "Control" = "gray")
+
+### trend lines going to mean
+ggplot(one_element, aes(x = year, y = mg_of_element, color = fert_type)) +
+  geom_point() +
+  stat_summary(
+    aes(group = fert_type),
+    fun.y = mean,  #can change this to median 
+    geom = "smooth",
+    method = "lm",
+    se = FALSE
+  ) +
+  scale_color_manual(values = color_palette) +
+  facet_grid(~ fert_location, scales = "free", switch = "both") +
+  ggtitle(paste("Change in mg of", element, "Over Time")) +
+  xlab("Year") +
+  ylab(paste("Mass of", element, "(mg)")) +
+  theme_minimal() 
+scale_y_continuous(limits = c(0, 10))
+
