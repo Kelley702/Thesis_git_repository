@@ -16,16 +16,21 @@ ggplot(one_element, aes(x = year, y = mg_of_element, color = fert_type)) +
   geom_point() +
   stat_summary(
     aes(group = fert_type),
-    fun.y = mean,  #can change this to median 
+    fun.y = mean,
     geom = "smooth",
     method = "lm",
     se = FALSE
   ) +
-  scale_color_manual(values = color_palette) +
+  scale_color_manual(values = color_palette, name = "Fertilizer Type") +
   facet_grid(~ fert_location, scales = "free", switch = "both") +
   ggtitle(paste("Change in mg of", element, "Over Time")) +
   xlab("Year") +
   ylab(paste("Mass of", element, "(mg)")) +
-  theme_minimal() 
-scale_y_continuous(limits = c(0, 10))
+  theme_minimal()+
+  theme(
+    text = element_text(size = 16),  # Adjust font size as needed
+    axis.title = element_text(size = 18),  # Adjust axis title font size
+    plot.title = element_text(size = 20)  # Adjust plot title font size
+  )
+
 
