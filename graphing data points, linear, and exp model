@@ -1,3 +1,5 @@
+############### this code is found in the file called Model_fitting saved on my computer #######################3
+
 graph_data1 <- read.xlsx("C:\\Users\\kelle\\OneDrive\\Thesis\\April2024_graphs\\Change_in_element_content_graph_dataframe.xlsx")
 
 graph_data1 <- graph_data1 %>% 
