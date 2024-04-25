@@ -1,5 +1,6 @@
 ############### this code is found in the file called Model_fitting saved on my computer #######################3
-
+#### as of 4/25/2024 it fits curves to raw data. the real curve I should fit would be fit to medians
+### I need to figure out if I should use the median of the 
 graph_data1 <- read.xlsx("C:\\Users\\kelle\\OneDrive\\Thesis\\April2024_graphs\\Change_in_element_content_graph_dataframe.xlsx")
 
 graph_data1 <- graph_data1 %>% 
@@ -16,12 +17,36 @@ graph_data1 <- graph_data1 %>%
   mutate(pct_mass_remaining = ifelse(year == 2020, 100, pct_mass_remaining),
          pct_element_remaining = ifelse(year == 2020, 100, pct_element_remaining))
 
+mass_and_n <- graph_data1 %>% 
+  filter(element == "P") %>% 
+  mutate(growing_degree_days = ifelse(year == 2020, 0, growing_degree_days)) %>% 
+  mutate(growing_degree_days_graph = case_when(
+    year == 2020 ~ 0,
+    year == 2021 ~ 127,
+    year == 2023 ~ 604,
+    TRUE ~ NA_real_  # For other years, you can specify what value you want
+  )) %>% 
+  mutate(percent_element_remaining = mg_of_element / (initial_mass * initial_conc_icp) * 100) %>% 
+  mutate(percent_element_remaining = ifelse(id == 172 & element == "P" & year == 2023, 91.99, percent_element_remaining)) %>% 
+  mutate(pct_mass_remaining = ifelse(year == 2020, 100, pct_mass_remaining)) %>% 
+  mutate(pct_n = ifelse(year == 2020, average_pctn, pct_n)) %>% 
+  mutate(pct_n_divided_by_starting_value = (pct_n/average_pctn)*100)
+
+
+
 location <- "Soil"
 
 element <- "P"
 
 one_element <- graph_data1 %>% 
   filter(element == {{element}}, fert_location == {{location}})
+
+mass_and_n <- mass_and_n %>% 
+  filter(fert_location == {{location}}
+
+data <- one_element #can be one_element or mass_and_n
+
+response_variable <- "percent_element_remaining"    ### icp elements RV is "percent_element_remaining" mass is "percent_mass_remaining" pct_n_divided_by_starting_value
 
 # Fit linear model with intercept forced to be 100
 intercept <- 100
@@ -35,33 +60,28 @@ exp_model <- nls(percent_element_remaining ~ exp(-k*growing_degree_days), data =
 
 quadratic_model <- lm(percent_element_remaining ~ growing_degree_days + I(growing_degree_days^2), data = one_element) 
 ###################################################### graphing the data points, exponential and linear models ###################################################
+
+### graph both models and m, k, and AIC values
 k <- summary(exp_model)$coefficients["k", "Estimate"]
 m <- summary(linear_model)$coefficients["growing_degree_days", "Estimate"]
-intercept <- 100
-
-t_values <- seq(0, 610, by = 10)  
-
-# Calculate corresponding values of y
-linear_y_values <- (m*t_values + intercept) #0.00698
-
-exp_y_values <- (exp(k * t_values)*100) #0.00698
-
-# Create a data frame
-exp_line_data <- data.frame(t = t_values, y = exp_y_values)
-linear_line_data <- data.frame(t = t_values, y = linear_y_values)
+aic_exp <- AIC(exp_model)
+aic_linear <- AIC(linear_model)
+slope_value <- coef(summary(linear_model))["growing_degree_days", "Estimate"]
+intercept_x <- 100 / slope_value
+one_element$intercept_value <- 100
 
 color_palette <- c("N" = "blue", "P" = "red", "NP" = "purple", "Ca" = "yellow", "Control" = "gray")
 
-### graph both models and m, k, and AIC values
-# Extract AIC from the summary of both models
-aic_exp <- AIC(exp_model)
-aic_linear <- AIC(linear_model)
 
 # Create the plot
 ggplot() +
-  geom_line(data = exp_line_data, aes(x = t, y = y), color = "blue") +
-  geom_line(data = linear_line_data, aes(x = t, y = y), color = "black") +
-  geom_ribbon(data = data, aes(x = t, ymin = y - ste, ymax = y + ste), fill = "blue", alpha = 0.2) +
+  stat_function(fun = function(x) predict(exp_model, newdata = data.frame(growing_degree_days = x)), 
+                color = "black", size = 1) +
+  
+              
+  geom_abline(data = data.frame(x = c(intercept_x, max(one_element$growing_degree_days)),
+                                y = c(min(one_element$percent_element_remaining)), max(one_element$percent_element_remaining)),
+              mapping = aes(slope = coef(summary(linear_model))["growing_degree_days", "Estimate"], intercept = 100 )) +
   geom_point(data = one_element, aes(x = growing_degree_days, y = percent_element_remaining, color = fert_type)) +
   scale_color_manual(values = color_palette) +
   ggtitle(paste("Change in", element, "Over Time: Fertilized", location)) +
@@ -73,14 +93,15 @@ ggplot() +
     axis.title = element_text(size = 18),  # Adjust axis title font size
     plot.title = element_text(size = 20),  # Adjust plot title font size
     panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-  geom_text(aes(x = max(data$t), y = 400, 
+  geom_text(aes(x = 400, y = 100, 
                 label = paste("Exp Model: k =", round(coef(exp_model)["k"], 5), "AIC =", round(aic_exp, 2), 
                               "\nLinear Model: m =", round(m, 5), "AIC =", round(aic_linear, 2))), 
-            hjust = 1, vjust = 1, color = "black", size = 4)
+            hjust = 1, vjust = 1, color = "black", size = 4) +
+  coord_cartesian(xlim = c(0, max(one_element$growing_degree_days)))
 
-#################################################################3 adjust for mass loss and n content
 
-location <- "Soil"
+############################################## adjust for mass loss and n content ######################################3
+#########################################################################################################################3
 
 mass_and_n <- graph_data1 %>% 
   filter(element == "P") %>% 
@@ -97,43 +118,90 @@ mass_and_n <- graph_data1 %>%
   mutate(pct_n = ifelse(year == 2020, average_pctn, pct_n)) %>% 
   mutate(pct_n_divided_by_starting_value = (pct_n/average_pctn)*100)
 
+location <- "Soil"
+
 mass_and_n <- mass_and_n %>% 
   filter(fert_location == {{location}})
 
+############################################## fit the models for mass loss
+intercept <- 100
 linear_model <- lm(pct_mass_remaining - intercept ~ growing_degree_days + 0, data = mass_and_n)
 
-exp_model <- nls(pct_mass_remaining ~ exp(-k*growing_degree_days), data = mass_and_n, start = list(k = 0.00001))
+exp_model <- nls(pct_mass_remaining ~ 100*exp(-k*growing_degree_days), data = mass_and_n, start = list(k = 0.00001))
 
+######################################### extract model parameters ################################33
+mass_and_n$y <- predict(linear_model)
 k <- summary(exp_model)$coefficients["k", "Estimate"]
 m <- summary(linear_model)$coefficients["growing_degree_days", "Estimate"]
-intercept <- 100
 
-t_values <- seq(0, 610, by = 10)  
-
-# Calculate corresponding values of y
-linear_y_values <- (m*t_values + intercept) #0.00698
-
-exp_y_values <- (exp(k * t_values)*100) #0.00698
-
+################################### plot the mass loss graph ######################################################
 ggplot() +
-  geom_line(data = exp_line_data, aes(x = t, y = y), color = "blue") +
-  geom_line(data = linear_line_data, aes(x = t, y = y), color = "black") +
-  geom_ribbon(data = data, aes(x = t, ymin = y - ste, ymax = y + ste), fill = "blue", alpha = 0.2) +
+  stat_function(fun = function(x) predict(exp_model, newdata = data.frame(growing_degree_days = x)), 
+                color = "black", size = 1) +
+  geom_line(data = mass_and_n, aes(x = growing_degree_days, y = y + 100)) +  
   geom_point(data = mass_and_n, aes(x = growing_degree_days, y = pct_mass_remaining, color = fert_type)) +
   scale_color_manual(values = color_palette) +
-  ggtitle(paste("Change in Mass Over Time: Fertilized", location)) +
+  ggtitle(paste("Mass Loss Over Time: Fertilized", location)) +
   xlab("Growing Degree Days") +
-  ylab(paste("Percent of Initial Mass Remaining")) +
+  ylab(paste("Percent Mass Remaining")) +
   theme_minimal() +
   theme(
     text = element_text(size = 16),  # Adjust font size as needed
     axis.title = element_text(size = 18),  # Adjust axis title font size
     plot.title = element_text(size = 20),  # Adjust plot title font size
     panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-  geom_text(aes(x = max(data$t), y = 150, 
+  geom_text(aes(x = 400, y = 100, 
                 label = paste("Exp Model: k =", round(coef(exp_model)["k"], 5), "AIC =", round(aic_exp, 2), 
                               "\nLinear Model: m =", round(m, 5), "AIC =", round(aic_linear, 2))), 
-            hjust = 1, vjust = 1, color = "black", size = 4)
+            hjust = 1, vjust = 1, color = "black", size = 4)  # Removed extra closing parenthesis
+
+
+############################ plot the change in N content graph 
+## reload mass_and_n from graph_data1 in order to switch locations 
+
+mass_and_n <- mass_and_n %>% 
+  filter(!is.na (pct_n_divided_by_starting_value))
+
+################################################# fit models
+intercept <- 100
+linear_model <- lm(pct_n_divided_by_starting_value - intercept ~ growing_degree_days + 0, data = mass_and_n)
+
+exp_model <- nls(pct_n_divided_by_starting_value ~ 100*exp(-k*growing_degree_days), data = mass_and_n, start = list(k = 0.00001))
+
+## extract k, m, AIC
+mass_and_n$y <- predict(linear_model)
+k <- summary(exp_model)$coefficients["k", "Estimate"]
+m <- summary(linear_model)$coefficients["growing_degree_days", "Estimate"]
+
+###################################### plot graph 
+
+ggplot() +
+  stat_function(fun = function(x) predict(exp_model, newdata = data.frame(growing_degree_days = x)), 
+                color = "black", size = 1) +
+  geom_line(data = mass_and_n, aes(x = growing_degree_days, y = y + 100)) +  
+  geom_point(data = mass_and_n, aes(x = growing_degree_days, y = pct_mass_remaining, color = fert_type)) +
+  scale_color_manual(values = color_palette) +
+  ggtitle(paste("Change in N Over Time: Fertilized", location)) +
+  xlab("Growing Degree Days") +
+  ylab(paste("Percent N Remaining")) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 16),  # Adjust font size as needed
+    axis.title = element_text(size = 18),  # Adjust axis title font size
+    plot.title = element_text(size = 20),  # Adjust plot title font size
+    panel.border = element_rect(color = "black", fill = NA, size = 1)) +
+  geom_text(aes(x = 400, y = 100, 
+                label = paste("Exp Model: k =", round(coef(exp_model)["k"], 5), "AIC =", round(aic_exp, 2), 
+                              "\nLinear Model: m =", round(m, 5), "AIC =", round(aic_linear, 2))), 
+            hjust = 1, vjust = 1, color = "black", size = 4)  # Removed extra closing parenthesis
+
+
+
+
+
+
+
+
 
 
 
